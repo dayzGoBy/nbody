@@ -1,0 +1,244 @@
+import numpy as np
+from numba import njit
+from enum import IntEnum
+import abc
+from collections import deque
+
+
+class DIR(IntEnum):
+    NULL = -1
+    SE = 0
+    SW = 1
+    NE = 2
+    NW = 3
+
+
+class Body:
+    G = np.float64(6.674e-11)
+
+    def __init__(self, position, velocity, mass):
+        self.__mass = mass / self.G
+        self.__vel = velocity
+        self.__pos = position
+        self.__acc = np.complex128(0)
+
+    def get_mass(self):
+        return self.__mass
+
+    def get_pos(self):
+        return self.__pos
+
+    @njit(inline='always')
+    def add_force(self, pos, mass):
+        r = pos - self.__pos
+        len_r = abs(r)
+        self.__acc += r * mass / (len_r * len_r * len_r)
+
+    def add_force_body(self, other):
+        self.add_force(other.__pos, other.__mass)
+
+    @njit(inline='always')
+    def update(self, dt):
+        dv = self.acc * dt
+        self.__pos += self.__vel * dt + dv * dt / 2
+        self.__vel += dv
+        self.acc = np.complex128(0)
+
+
+class BHTree:
+    THETA = 0.5
+
+    class Quad:
+        def __init__(self, center, lenght):
+            self.center = center
+            self.length = lenght
+            self.__half_len = self.length / 2
+
+        def contains(self, p):
+            return (p.real <= self.center.real + self.__half_len
+                    and p.real >= self.center.real - self.__half_len
+                    and p.imag <= self.center.imag + self.__half_len
+                    and p.imag >= self.center.imag - self.__half_len)
+
+        def subquad(self, dir: DIR):
+            if dir == -1:
+                raise ValueError("incorrect direction")
+            qr = self.__half_len / 2
+            mul_x = -1 if dir == DIR.SW or dir == DIR.NW else 1
+            mul_y = 1 if dir == DIR.NE or dir == DIR.NW else -1
+            return BHTree.Quad(self.center +
+                               np.complex128(qr * mul_x + 1j * qr * mul_y),
+                               self.__half_len)
+
+    class Node(metaclass=abc.ABCMeta):
+        def __init__(self, quad, parent, dir):
+            self.quad = quad
+            self.parent = parent
+            self.dir = dir
+
+        @classmethod
+        def create_from_parent(cls, parent, dir):
+            return cls(parent.quad.subquad(dir), parent, dir)
+
+        @classmethod
+        def create_from_pos(cls, quad):
+            return cls(quad, None, None)
+
+        @abc.abstractmethod
+        def is_leaf(self):
+            pass
+
+        def contains(self, body):
+            return self.quad.contains(body.get_pos())
+
+    class LNode(Node):
+        def __init__(self, quad, parent, dir, body):
+            super.__init__(quad, parent, dir)
+            self.body = body
+
+        @classmethod
+        def create_from_parent(cls, parent, dir, body=None):
+            return cls(parent.quad.subquad(dir), parent, dir, body)
+
+        @classmethod
+        def create_from_pos(cls, quad, body):
+            return cls(quad, None, None, body)
+
+        def is_leaf(self):
+            return True
+
+    class INode(Node):
+        def __init__(self, quad, parent, dir):
+            super.__init__(quad, parent, dir)
+            self.children = [BHTree.LNode()] * 4
+            self.mass = np.float64(0)
+            self.mass_center = np.complex128(0)
+
+        @classmethod
+        def create_from_parent(cls, parent, dir):
+            return cls(parent.quad.subquad(dir), parent, dir)
+
+        @classmethod
+        def create_from_pos(cls, quad):
+            return cls(quad, None, None)
+
+        def is_leaf(self):
+            return False
+
+        def set_internal(self, dir):
+            self.children[dir] = BHTree.INode()
+
+        def where(self, pos):
+            is_w = pos.real <= self.quad.center.real
+            is_n = pos.imag >= self.quad.center.imag
+            return self.children[is_n * 2 + is_w]
+
+        def get(self, dir):
+            return self.children[dir]
+
+        def calc_mass(self):
+            self.mass = np.float64(0)
+            for ch in self.children:
+                if ch.is_leaf():
+                    self.mass += 0 if ch.body is None else ch.mass
+                else:
+                    self.mass += ch.calc_mass()
+            return self.mass
+
+        def calc_mass_center(self):
+            self.mass_center = np.complex128(0)
+            for ch in self.children:
+                if ch.is_leaf() and ch.body is not None:
+                    self.mass_center += (ch.body.mass * ch.body.pos /
+                                         self.mass)
+                elif not ch.is_leaf():
+                    self.mass += ch.calc_mass_center()
+            return self.mass_center
+
+    def __init__(self, bodies, size):
+        self.root = None
+        self.size = size
+        for b in bodies:
+            self.insert(b)
+        if len(bodies) >= 2:
+            self.root.calc_mass()
+            self.root.calc_mass_center()
+
+    def insert(self, body):
+        if self.root is None:
+            self.root = BHTree.LNode.create_from_pos(
+                BHTree.Quad(0, self.size), body)
+            return
+
+        ptr = self.root
+        while not ptr.is_leaf():
+            ptr = ptr.where(body.get_pos())
+
+        if ptr.body is None:
+            ptr.body = body
+            return
+
+        another = ptr.body
+        dir = ptr.dir
+        split_node = None
+        parent = ptr.parent
+
+        if ptr.parent is None:
+            self.root = BHTree.INode.create_from_pos(ptr.quad)
+            split_node = self.root
+        else:
+            parent.set_internal(dir)
+            split_node = parent
+
+        self.split(body, another, split_node)
+
+    def split(self, one, two, cur):
+        one_l = cur.where(one.get_pos())
+        two_l = cur.where(two.get_pos())
+
+        if one_l == two_l:
+            dir = one_l.dir
+            cur.set_internal(dir)
+            self.split(one, two, cur.get(dir))
+        else:
+            one_l.body = one
+            two_l.body = two
+
+    def calc_force(self, body):
+        q = deque()
+        q.append(self.root)
+
+        while q.count() > 0:
+            node = q.popleft()
+
+            if node.is_leaf() and not node.contains(body):
+                if node.body is not None:
+                    body.add_force_body(node.body)
+            elif not node.is_leaf() and node.contains(body):
+                for ch in node.children:
+                    q.append(ch)
+            elif not node.is_leaf() and not node.contains(body):
+                theta = node.quad.length / abs(body.get_pos()
+                                               - node.mass_center)
+                if theta < self.THETA:
+                    body.add_force(node.mass_center, node.mass)
+                else:
+                    for ch in node.children:
+                        q.append(ch)
+
+
+class Tracker:
+    def __init__(self, bodies, dt=np.float64(1)):
+        self.__bodies = bodies.copy()
+        self.dt = dt
+
+    @njit
+    def update(self, N=1):
+        tree = BHTree(self.__bodies)
+
+        for i in range(N):
+            for b in self.__bodies:
+                tree.calc_force(b)
+
+        for b in self.__bodies:
+            b.update(self.dt)
