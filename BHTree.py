@@ -15,8 +15,7 @@ class DIR(IntEnum):
 class Body:
     G = np.float64(6.674e-11)
 
-    def __init__(self, mass: np.float64, position: np.complex128,
-                 velocity: np.complex128):
+    def __init__(self, position, velocity, mass):
         self.__mass = mass / self.G
         self.__vel = velocity
         self.__pos = position
@@ -43,12 +42,12 @@ class Body:
 
 
 class Quad:
-    def __init__(self, center: np.complex128, lenght: np.float64):
+    def __init__(self, center, lenght):
         self.center = center
         self.length = lenght
         self.__half_len = self.length / 2
 
-    def contains(self, p: np.complex128):
+    def contains(self, p):
         return (p.real <= self.center.real + self.__half_len
                 and p.real >= self.center.real - self.__half_len
                 and p.imag <= self.center.imag + self.__half_len
