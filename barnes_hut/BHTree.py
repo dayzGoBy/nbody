@@ -50,10 +50,10 @@ class Quad:
         self.__half_len = length / 2
 
     def contains(self, p):
-        return (p.real <= self.center.real + self.__half_len
-                and p.real >= self.center.real - self.__half_len
-                and p.imag <= self.center.imag + self.__half_len
-                and p.imag >= self.center.imag - self.__half_len)
+        return (p.real <= (self.center.real + self.__half_len)
+                and p.real >= (self.center.real - self.__half_len)
+                and p.imag <= (self.center.imag + self.__half_len)
+                and p.imag >= (self.center.imag - self.__half_len))
 
     def subquad(self, dir: DIR):
         if dir == -1:
@@ -240,14 +240,13 @@ class Tracker:
         self.dt = dt
 
     def update(self, N=1):
-        tree = BHTree(self.__bodies, self.__size)
-
         for _ in range(N):
+            tree = BHTree(self.__bodies, self.__size)
             for b in self.__bodies:
                 tree.calc_force(b)
 
-        for b in self.__bodies:
-            b.update(self.dt)
+            for b in self.__bodies:
+                b.update(self.dt)
 
     def get(self, index):
         return self.__bodies[index].get_pos()
