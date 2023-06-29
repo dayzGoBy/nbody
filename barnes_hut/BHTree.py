@@ -1,5 +1,6 @@
 import numpy as np
-# from numba import njit
+from numba import float64, complex128
+from numba.experimental import jitclass
 from enum import IntEnum
 import abc
 from collections import deque
@@ -13,11 +14,14 @@ class DIR(IntEnum):
     NW = 3
 
 
-class Body:
-    G = np.float64(6.674184e-11)
+__spec_Body = [('__mass', float64), ('__pos', complex128),
+               ('__vel', complex128), ('__acc', complex128)]
 
+
+@jitclass(__spec_Body)
+class Body:
     def __init__(self, position, velocity, mass):
-        self.__mass = mass * self.G
+        self.__mass = mass * np.float64(6.674184e-11)
         self.__pos = position
         self.__vel = velocity
         self.__acc = np.complex128(0)
@@ -43,6 +47,11 @@ class Body:
         self.__acc = np.complex128(0)
 
 
+__spec_Quad = [('center', complex128), ('length', float64),
+               ('__half_len', float64)]
+
+
+@jitclass(__spec_Quad)
 class Quad:
     def __init__(self, center, length):
         self.center = center
