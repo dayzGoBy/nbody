@@ -1,5 +1,5 @@
 import numpy as np
-from barnes_hut.BHTree import Tracker, Body
+from ..barnes_hut.BHTree import Tracker, Body
 
 
 def cmp(a, b, eps=0.001):
@@ -14,7 +14,7 @@ def test_solar():
               Body(0, 0, 1.9890e+30),
               Body(1.0820e+11, 3.5000e+04j, 4.8690e+24)]
 
-    T = Tracker(BODIES.copy(), SIZE)
+    T = Tracker(BODIES, SIZE)
 
     T.update(N=1000)
 
