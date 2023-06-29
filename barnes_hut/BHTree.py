@@ -259,3 +259,6 @@ class Tracker:
 
     def get(self, index):
         return self.__bodies[index].get_pos()
+
+    def get_all(self):
+        return np.array(list(map(lambda x: x.get_pos(), self.__bodies)))
