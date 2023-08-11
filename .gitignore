@@ -1,5 +1,5 @@
 .vscode
-.conda
+.nbody-env
 *.pyc
 *.pytest_cache*
 *__pycache__*

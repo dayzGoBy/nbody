@@ -31,6 +31,9 @@ class Body:
 
     def get_pos(self):
         return self.__pos
+    
+    def get_vel(self):
+        return self.__pos
 
     def add_force(self, pos, mass):
         r = pos - self.__pos
@@ -139,8 +142,8 @@ class INode(Node):
         self.children[dir] = INode.create_from_parent(self, dir)
 
     def where(self, pos):
-        is_w = pos.real <= self.quad.center.real
-        is_n = pos.imag >= self.quad.center.imag
+        is_w = pos.real < self.quad.center.real
+        is_n = pos.imag > self.quad.center.imag
         return self.children[is_n * 2 + is_w]
 
     def get(self, dir):
@@ -208,8 +211,10 @@ class BHTree:
         self.split(body, another, split_node)
 
     def split(self, one, two, cur):
-        one_l = cur.where(one.get_pos())
-        two_l = cur.where(two.get_pos())
+        one_p = one.get_pos()
+        two_p = two.get_pos()
+        one_l = cur.where(one_p)
+        two_l = cur.where(two_p)
 
         if one_l == two_l:
             dir = one_l.dir
