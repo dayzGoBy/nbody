@@ -1,6 +1,6 @@
 import numpy as np
-from numba import float64, complex128
-from numba.experimental import jitclass
+# from numba import float64, complex128, jit
+# from numba.experimental import jitclass
 from enum import IntEnum
 import abc
 from collections import deque
@@ -14,11 +14,11 @@ class DIR(IntEnum):
     NW = 3
 
 
-__spec_Body = [('__mass', float64), ('__pos', complex128),
-               ('__vel', complex128), ('__acc', complex128)]
+# __spec_Body = [('__mass', float64), ('__pos', complex128),
+#               ('__vel', complex128), ('__acc', complex128)]
 
 
-@jitclass(__spec_Body)
+# @jitclass(__spec_Body)
 class Body:
     def __init__(self, position, velocity, mass):
         self.__mass = mass * np.float64(6.674184e-11)
@@ -47,11 +47,11 @@ class Body:
         self.__acc = np.complex128(0)
 
 
-__spec_Quad = [('center', complex128), ('length', float64),
-               ('__half_len', float64)]
+# __spec_Quad = [('center', complex128), ('length', float64),
+#               ('__half_len', float64)]
 
 
-@jitclass(__spec_Quad)
+# @jitclass(__spec_Quad)
 class Quad:
     def __init__(self, center, length):
         self.center = center
@@ -59,10 +59,10 @@ class Quad:
         self.__half_len = length / 2
 
     def contains(self, p):
-        return (p.real <= (self.center.real + self.__half_len)
-                and p.real >= (self.center.real - self.__half_len)
-                and p.imag <= (self.center.imag + self.__half_len)
-                and p.imag >= (self.center.imag - self.__half_len))
+        return (p.real < (self.center.real + self.__half_len)
+                and p.real > (self.center.real - self.__half_len)
+                and p.imag < (self.center.imag + self.__half_len)
+                and p.imag > (self.center.imag - self.__half_len))
 
     def subquad(self, dir: DIR):
         if dir == -1:
@@ -226,9 +226,9 @@ class BHTree:
         while len(q) > 0:
             node = q.popleft()
 
-            if node.is_leaf() and not node.contains(body):
-                if node.body is not None:
-                    body.add_force_body(node.body)
+            if (node.is_leaf() and node.body is not None and
+                    node.body is not body):
+                body.add_force_body(node.body)
             elif not node.is_leaf() and node.contains(body):
                 for ch in node.children:
                     q.append(ch)
@@ -262,3 +262,8 @@ class Tracker:
 
     def get_all(self):
         return np.array(list(map(lambda x: x.get_pos(), self.__bodies)))
+
+    def get_all_pairs(self):
+        return np.array(list(map(
+            lambda x: (x.get_pos().real, x.get_pos().imag,),
+            self.__bodies)))
