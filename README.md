@@ -1,3 +1,3 @@
 ## 2-dimensional n-body problem simulation using Barnes-Hut algorithm 
 
-![](/output/solar.gif)
+![](/output/random150.gif)
